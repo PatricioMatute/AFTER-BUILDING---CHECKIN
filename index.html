@@ -141,6 +141,10 @@
       var id = document.getElementById('manual-id').value.trim();
       if (id) procesarCodigo(id, true);
     };
+    document.getElementById('manual-id').addEventListener('input', function () {
+      document.getElementById('manual-btn').disabled = false;
+      document.getElementById('manual-btn').textContent = 'Buscar';
+    });
     document.getElementById('manual-id').addEventListener('keydown', function (e) {
       if (e.key === 'Enter') document.getElementById('manual-btn').click();
     });
@@ -220,9 +224,13 @@
 
     if (scanner && !esManual) { try { scanner.pause(true); } catch (e) {} }
 
+    var btnManual = document.getElementById('manual-btn');
+    if (esManual) { btnManual.disabled = true; btnManual.textContent = 'Buscando...'; }
+
     llamarApi({ accion: 'checkin', pin: PIN_ACTUAL, id: id }, function (res) {
       mostrarResultado(id, res || { ok: false, motivo: 'error' });
       procesando = false;
+      if (esManual) { btnManual.disabled = false; btnManual.textContent = 'Buscar'; }
       if (scanner && !esManual) { try { scanner.resume(); } catch (e) {} }
     });
   }
