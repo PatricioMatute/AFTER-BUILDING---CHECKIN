@@ -159,15 +159,20 @@
   function intentarPin() {
     var pin = document.getElementById('pin-input').value.trim();
     if (!pin) return;
+    var btn = document.getElementById('pin-btn');
     document.getElementById('pin-error').textContent = '';
+    btn.disabled = true;
+    btn.textContent = 'Verificando...';
     llamarApi({ accion: 'pin', pin: pin }, function (res) {
+      btn.disabled = false;
+      btn.textContent = 'Entrar';
       if (res.ok) {
         PIN_ACTUAL = pin;
         document.getElementById('pin-screen').style.display = 'none';
         document.getElementById('app').style.display = 'block';
         actualizarContador();
       } else {
-        document.getElementById('pin-error').textContent = 'PIN incorrecto';
+        document.getElementById('pin-error').textContent = res.motivo === 'error_red' ? 'Error de conexión, intenta de nuevo' : 'PIN incorrecto';
         document.getElementById('pin-input').value = '';
       }
     });
@@ -226,6 +231,7 @@
 
     var btnManual = document.getElementById('manual-btn');
     if (esManual) { btnManual.disabled = true; btnManual.textContent = 'Buscando...'; }
+    document.getElementById('resultado').innerHTML = '<div class="placeholder">Verificando código...</div>';
 
     llamarApi({ accion: 'checkin', pin: PIN_ACTUAL, id: id }, function (res) {
       mostrarResultado(id, res || { ok: false, motivo: 'error' });
