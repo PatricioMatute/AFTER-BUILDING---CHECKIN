@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<title>After Building — Escáner de Check-in</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.8/html5-qrcode.min.js"></script>
+<style>
+  :root{
+    --navy:#00173E; --rojo:#E43639; --sidebar:#1F2430;
+    --paper:#F6F5F2; --tinta:#1B2430; --gris:#5A6472; --linea:#E3E1DA;
+  }
+  *{box-sizing:border-box;}
+  html{-webkit-text-size-adjust:100%;text-size-adjust:100%;}
+  img{max-width:100%;}
+  body{margin:0;background:var(--paper);color:var(--tinta);font-family:'Inter',sans-serif;font-size:14px;}
+  h1,h2,h3{font-family:'Space Grotesk',sans-serif;margin:0;}
+  .mono{font-family:'JetBrains Mono',monospace;}
+
+  #pin-screen{position:fixed;inset:0;background:var(--navy);display:flex;align-items:center;justify-content:center;flex-direction:column;z-index:999;color:#fff;padding:24px;}
+  #pin-screen h1{font-size:20px;letter-spacing:.02em;margin-bottom:4px;}
+  #pin-screen .sub{letter-spacing:.15em;font-size:11px;color:var(--rojo);text-transform:uppercase;margin-bottom:18px;}
+  #pin-screen p{color:#B9C2D6;margin:0 0 20px;font-size:13px;text-align:center;}
+  #pin-input{width:180px;font-size:28px;letter-spacing:10px;text-align:center;padding:12px;border-radius:6px;border:none;font-family:'JetBrains Mono',monospace;}
+  #pin-btn{margin-top:16px;background:var(--rojo);color:#fff;border:none;padding:12px 28px;border-radius:4px;font-weight:600;cursor:pointer;font-size:14px;}
+  #pin-error{color:#FF9B9B;font-size:12px;margin-top:10px;height:14px;}
+
+  #app{display:none;max-width:480px;margin:0 auto;min-height:100vh;background:#fff;}
+
+  header.top{background:var(--sidebar);color:#fff;padding:14px 18px;text-align:center;}
+  header.top h1{font-size:16px;}
+  .contador{margin-top:8px;display:inline-flex;align-items:center;gap:8px;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.25);border-radius:20px;padding:6px 16px;}
+  .contador .num{font-family:'Space Grotesk',sans-serif;font-size:16px;font-weight:700;color:#fff;}
+  .contador .txt{font-size:11px;color:#B9C2D6;text-transform:uppercase;letter-spacing:.04em;}
+
+  #reader{width:100%;background:#000;min-height:1px;}
+  #reader video{width:100%!important;}
+
+  .estado-camara{padding:10px 18px;font-size:12px;color:var(--gris);text-align:center;background:#F1F1EE;}
+
+  #btn-activar-camara{display:block;width:calc(100% - 36px);margin:18px;padding:16px;background:var(--rojo);color:#fff;border:none;border-radius:6px;font-weight:700;font-size:15px;font-family:'Inter',sans-serif;cursor:pointer;}
+  #btn-activar-camara:disabled{opacity:.6;}
+
+  .resultado{padding:18px;min-height:160px;}
+  .card-resultado{border-radius:8px;padding:18px;text-align:center;border:1px solid var(--linea);}
+  .card-resultado.ok{background:#E9F6EE;border-color:#B7E4C7;}
+  .card-resultado.repetido{background:#FEF3E3;border-color:#F5D9A8;}
+  .card-resultado.error{background:#FDECEC;border-color:#F5B8B8;}
+  .card-resultado .icono{font-size:34px;line-height:1;margin-bottom:8px;}
+  .card-resultado .nombre{font-family:'Space Grotesk',sans-serif;font-size:19px;font-weight:700;color:var(--navy);}
+  .card-resultado .detalle{font-size:12.5px;color:var(--gris);margin-top:6px;line-height:1.6;}
+  .card-resultado .msg{font-size:13px;font-weight:600;margin-top:8px;}
+  .card-resultado.ok .msg{color:#2E9E5B;}
+  .card-resultado.repetido .msg{color:#B8860B;}
+  .card-resultado.error .msg{color:var(--rojo);}
+  .placeholder{color:var(--gris);font-size:13px;text-align:center;padding:30px 10px;}
+
+  .manual{padding:0 18px 20px;}
+  .manual summary{cursor:pointer;color:var(--gris);font-size:12px;font-weight:600;padding:8px 0;}
+  .manual .fila{display:flex;gap:8px;margin-top:8px;}
+  .manual input{flex:1;padding:9px 10px;border:1px solid var(--linea);border-radius:4px;font-size:13px;font-family:'JetBrains Mono',monospace;}
+  .manual button{background:var(--navy);color:#fff;border:none;padding:9px 16px;border-radius:4px;font-weight:600;font-size:13px;cursor:pointer;}
+</style>
+</head>
+<body>
+
+<div id="pin-screen">
+  <h1>AFTER BUILDING</h1>
+  <div class="sub">Escáner de Check-in</div>
+  <p>Check-in del evento · MEGAHIERRO</p>
+  <input id="pin-input" class="mono" type="tel" inputmode="numeric" pattern="[0-9]*" maxlength="6" placeholder="••••">
+  <button id="pin-btn">Entrar</button>
+  <div id="pin-error"></div>
+</div>
+
+<div id="app">
+  <header class="top">
+    <h1>Check-in — After Building</h1>
+    <div class="contador">
+      <span class="num" id="contador-num">0 / 0</span>
+      <span class="txt">Asistieron</span>
+    </div>
+  </header>
+
+  <div id="reader"></div>
+  <div class="estado-camara" id="estado-camara">Toca el botón para activar la cámara</div>
+  <button id="btn-activar-camara">Activar cámara y escanear</button>
+
+  <div class="resultado" id="resultado">
+    <div class="placeholder">Apunta la cámara al código QR del invitado.</div>
+  </div>
+
+  <details class="manual">
+    <summary>¿No funciona la cámara? Escribe el código manualmente</summary>
+    <div class="fila">
+      <input type="text" id="manual-id" placeholder="Ej. INV-72E37E72" class="mono">
+      <button id="manual-btn">Buscar</button>
+    </div>
+  </details>
+</div>
+
+<script>
+  // Reemplaza esta URL si el proyecto se vuelve a desplegar en una URL distinta.
+  var API_URL = 'https://script.google.com/macros/s/AKfycbw2ybZ0Tc1jqdCxDZhLedAOT0rJBk-8x4SylurozfIZ9NgtS9QxLpAMSfDp5WIkBCxV/exec';
+
+  var PIN_ACTUAL = '';
+  var scanner = null;
+  var procesando = false;
+  var ULTIMO_ID = null;
+  var ULTIMO_TS = 0;
+  var jsonpN = 0;
+
+  function llamarApi(params, cb) {
+    var nombreCb = 'cb_' + (jsonpN++) + '_' + Date.now();
+    window[nombreCb] = function (data) {
+      delete window[nombreCb];
+      if (script.parentNode) script.parentNode.removeChild(script);
+      cb(data);
+    };
+    var qs = ['page=api', 'callback=' + encodeURIComponent(nombreCb)];
+    Object.keys(params).forEach(function (k) {
+      qs.push(encodeURIComponent(k) + '=' + encodeURIComponent(params[k]));
+    });
+    var script = document.createElement('script');
+    script.src = API_URL + '?' + qs.join('&');
+    script.onerror = function () {
+      delete window[nombreCb];
+      if (script.parentNode) script.parentNode.removeChild(script);
+      cb({ ok: false, motivo: 'error_red' });
+    };
+    document.body.appendChild(script);
+  }
+
+  document.addEventListener('DOMContentLoaded', function () {
+    document.getElementById('pin-btn').onclick = intentarPin;
+    document.getElementById('pin-input').addEventListener('keydown', function (e) { if (e.key === 'Enter') intentarPin(); });
+    document.getElementById('pin-input').focus();
+    document.getElementById('manual-btn').onclick = function () {
+      var id = document.getElementById('manual-id').value.trim();
+      if (id) procesarCodigo(id, true);
+    };
+    document.getElementById('manual-id').addEventListener('keydown', function (e) {
+      if (e.key === 'Enter') document.getElementById('manual-btn').click();
+    });
+    document.getElementById('btn-activar-camara').onclick = function () {
+      var btn = document.getElementById('btn-activar-camara');
+      btn.disabled = true;
+      btn.textContent = 'Abriendo cámara...';
+      iniciarCamara();
+    };
+  });
+
+  function intentarPin() {
+    var pin = document.getElementById('pin-input').value.trim();
+    if (!pin) return;
+    document.getElementById('pin-error').textContent = '';
+    llamarApi({ accion: 'pin', pin: pin }, function (res) {
+      if (res.ok) {
+        PIN_ACTUAL = pin;
+        document.getElementById('pin-screen').style.display = 'none';
+        document.getElementById('app').style.display = 'block';
+        actualizarContador();
+      } else {
+        document.getElementById('pin-error').textContent = 'PIN incorrecto';
+        document.getElementById('pin-input').value = '';
+      }
+    });
+  }
+
+  function actualizarContador() {
+    llamarApi({ accion: 'stats', pin: PIN_ACTUAL }, function (stats) {
+      if (stats && typeof stats.asistieron !== 'undefined') {
+        document.getElementById('contador-num').textContent = stats.asistieron + ' / ' + stats.confirmados;
+      }
+    });
+  }
+
+  function iniciarCamara() {
+    var estadoEl = document.getElementById('estado-camara');
+    var btn = document.getElementById('btn-activar-camara');
+
+    if (typeof Html5Qrcode === 'undefined') {
+      estadoEl.textContent = 'No se pudo cargar el lector de QR (revisa tu conexión) y recarga la página.';
+      btn.disabled = false;
+      btn.textContent = 'Reintentar';
+      return;
+    }
+
+    try {
+      scanner = new Html5Qrcode('reader');
+      scanner.start(
+        { facingMode: 'environment' },
+        { fps: 10, qrbox: 240 },
+        function (decodedText) { procesarCodigo(decodedText, false); },
+        function () { /* frame sin QR, ignorar */ }
+      ).then(function () {
+        estadoEl.textContent = 'Cámara lista — apunta al QR del invitado';
+        btn.style.display = 'none';
+      }).catch(function (err) {
+        estadoEl.textContent = 'No se pudo abrir la cámara (revisa el permiso de cámara del navegador). Usa el código manual abajo, o intenta de nuevo.';
+        btn.disabled = false;
+        btn.textContent = 'Reintentar activar cámara';
+      });
+    } catch (e) {
+      estadoEl.textContent = 'No se pudo iniciar el lector de QR. Usa el código manual abajo, o recarga la página.';
+      btn.disabled = false;
+      btn.textContent = 'Reintentar activar cámara';
+    }
+  }
+
+  function procesarCodigo(id, esManual) {
+    var ahora = Date.now();
+    if (!esManual && id === ULTIMO_ID && (ahora - ULTIMO_TS) < 4000) return;
+    if (procesando) return;
+    procesando = true;
+    ULTIMO_ID = id;
+    ULTIMO_TS = ahora;
+
+    if (scanner && !esManual) { try { scanner.pause(true); } catch (e) {} }
+
+    llamarApi({ accion: 'checkin', pin: PIN_ACTUAL, id: id }, function (res) {
+      mostrarResultado(id, res || { ok: false, motivo: 'error' });
+      procesando = false;
+      if (scanner && !esManual) { try { scanner.resume(); } catch (e) {} }
+    });
+  }
+
+  function mostrarResultado(id, res) {
+    var el = document.getElementById('resultado');
+    if (!res.ok) {
+      el.innerHTML =
+        '<div class="card-resultado error">' +
+          '<div class="icono">&#10007;</div>' +
+          '<div class="nombre">Código no encontrado</div>' +
+          '<div class="detalle mono">' + esc(id) + '</div>' +
+          '<div class="msg">Verifica el código o busca al invitado en el dashboard.</div>' +
+        '</div>';
+      pitido(false);
+      return;
+    }
+    var i = res.invitado;
+    var claseCard = res.yaRegistrado ? 'repetido' : 'ok';
+    var icono = res.yaRegistrado ? '&#8635;' : '&#10003;';
+    var mensaje = res.yaRegistrado
+      ? 'Ya había hecho check-in' + (i['Hora de check-in'] ? ' a las ' + formatearHora(i['Hora de check-in']) : '')
+      : '¡Check-in registrado!';
+    el.innerHTML =
+      '<div class="card-resultado ' + claseCard + '">' +
+        '<div class="icono">' + icono + '</div>' +
+        '<div class="nombre">' + esc(i['Nombre completo']) + '</div>' +
+        '<div class="detalle">' + esc(i['Empresa/Agencia']) + (i['Profesión'] ? ' · ' + esc(i['Profesión']) : '') + '<br>Cédula: ' + esc(i['Cédula']) + '</div>' +
+        '<div class="msg">' + mensaje + '</div>' +
+      '</div>';
+    pitido(!res.yaRegistrado);
+    actualizarContador();
+    document.getElementById('manual-id').value = '';
+  }
+
+  function formatearHora(v) {
+    var d = new Date(v);
+    return isNaN(d) ? '' : d.toLocaleTimeString('es-EC', { hour: '2-digit', minute: '2-digit' });
+  }
+
+  function pitido(exito) {
+    try {
+      var ctx = new (window.AudioContext || window.webkitAudioContext)();
+      var osc = ctx.createOscillator();
+      var gain = ctx.createGain();
+      osc.connect(gain); gain.connect(ctx.destination);
+      osc.frequency.value = exito ? 880 : 300;
+      gain.gain.setValueAtTime(0.15, ctx.currentTime);
+      osc.start();
+      osc.stop(ctx.currentTime + 0.15);
+    } catch (e) {}
+  }
+
+  function esc(s) { return (s === undefined || s === null) ? '' : String(s).replace(/[&<>]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]; }); }
+</script>
+</body>
+</html>
